@@ -1,27 +1,21 @@
 import uk.ac.leedsbeckett.oop.LBUGraphics;
-import java.awt.*;
+import javax.imageio.ImageIO;
 import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TurtleGraphics extends LBUGraphics {
 
+    private List<String> commandHistory = new ArrayList<>();
+    private boolean isImageSaved = true;
+    private boolean isCommandsSaved = true;
+
     public TurtleGraphics() {
-        // Skip image loading and use simple graphics
-        // You can set a default color for the turtle or use basic shapes for visualization
-        setPenColour(Color.BLACK); // Default pen color
-        setTurtleShape(); // Optionally use a simple shape for the turtle
+        setPenColour(Color.BLACK);
     }
-
-    // Override this method if needed, to provide a simple shape or drawing for the turtle
-    private void setTurtleShape() {
-        // You can customize this method to draw a simple shape instead of an image
-        // For example, drawing a small rectangle or circle to represent the turtle
-        Graphics g = getGraphics();
-        if (g != null) {
-            g.setColor(Color.RED); // Set turtle color to red (or any color you prefer)
-            g.fillOval(0, 0, 10, 10); // Draw a small circle as the turtle
-        }
-    }
-
 
     public void processCommand(String command) {
         if (command == null || command.trim().isEmpty()) {
@@ -69,10 +63,24 @@ public class TurtleGraphics extends LBUGraphics {
                 case "white": setPenColour(Color.white); break;
                 case "reset": reset(); break;
                 case "clear": clear(); break;
+
+                case "saveimage": saveImage(); break;
+                case "loadimage": loadImage(); break;
+                case "savecommands": saveCommands(); break;
+                case "loadcommands": loadCommands(); break;
+
                 default:
                     displayMessage("Invalid command: " + command);
-                    break;
+                    return;
             }
+
+            // Track command history if it is a drawing command
+            if (!cmd.equals("saveimage") && !cmd.equals("loadimage") && !cmd.equals("savecommands") && !cmd.equals("loadcommands")) {
+                commandHistory.add(command);
+                isImageSaved = false;
+                isCommandsSaved = false;
+            }
+
         } catch (NumberFormatException e) {
             displayMessage("Invalid number format in command: " + command);
         }
@@ -86,5 +94,85 @@ public class TurtleGraphics extends LBUGraphics {
     public void about() {
         super.about();
         displayMessage("Design by Mobin Sheikh.");
+    }
+
+    // --- Save the current canvas as an image ---
+    private void saveImage() {
+        try {
+            BufferedImage img = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+            paint(img.getGraphics());
+            JFileChooser fileChooser = new JFileChooser();
+            if (fileChooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                File outFile = fileChooser.getSelectedFile();
+                ImageIO.write(img, "png", outFile);
+                isImageSaved = true;
+                displayMessage("Image saved successfully.");
+            }
+        } catch (IOException e) {
+            displayMessage("Failed to save image.");
+        }
+    }
+
+    // --- Load an image and display it ---
+    private void loadImage() {
+        if (!isImageSaved) {
+            int choice = JOptionPane.showConfirmDialog(null,
+                    "Current image is not saved. Do you want to save it first?",
+                    "Warning", JOptionPane.YES_NO_CANCEL_OPTION);
+            if (choice == JOptionPane.CANCEL_OPTION) return;
+            if (choice == JOptionPane.YES_OPTION) saveImage();
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        if (fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+            try {
+                BufferedImage img = ImageIO.read(fileChooser.getSelectedFile());
+                getGraphics().drawImage(img, 0, 0, null);
+                isImageSaved = true;
+                displayMessage("Image loaded successfully.");
+            } catch (IOException e) {
+                displayMessage("Failed to load image.");
+            }
+        }
+    }
+
+    // --- Save all typed commands to a text file ---
+    private void saveCommands() {
+        JFileChooser fileChooser = new JFileChooser();
+        if (fileChooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            try (PrintWriter writer = new PrintWriter(fileChooser.getSelectedFile())) {
+                for (String cmd : commandHistory) {
+                    writer.println(cmd);
+                }
+                isCommandsSaved = true;
+                displayMessage("Commands saved.");
+            } catch (IOException e) {
+                displayMessage("Failed to save commands.");
+            }
+        }
+    }
+
+    // --- Load and execute all commands from a text file ---
+    private void loadCommands() {
+        if (!isCommandsSaved) {
+            int choice = JOptionPane.showConfirmDialog(null,
+                    "Current commands are not saved. Do you want to save them first?",
+                    "Warning", JOptionPane.YES_NO_CANCEL_OPTION);
+            if (choice == JOptionPane.CANCEL_OPTION) return;
+            if (choice == JOptionPane.YES_OPTION) saveCommands();
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        if (fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(fileChooser.getSelectedFile()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    processCommand(line);  // Reuse existing command processor
+                }
+                displayMessage("Commands loaded and executed.");
+            } catch (IOException e) {
+                displayMessage("Failed to load commands.");
+            }
+        }
     }
 }
